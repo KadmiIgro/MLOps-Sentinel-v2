@@ -1,0 +1,28 @@
+data:
+  path: "data/train.csv"
+  text_column: "text"
+  target_column: "target"
+  test_size: 0.2
+  random_state: 42
+
+model:
+  name: "distilbert-base-uncased"
+  num_labels: 2
+  epochs: 3
+  batch_size: 16
+  learning_rate: 2e-5
+  warmup_steps: 500
+  weight_decay: 0.01
+
+task:
+  name: "disaster_classification"
+  description: "Классификация твитов на наличие катастроф"
+  labels:
+    "0": "not_disaster"
+    "1": "disaster"
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  max_text_length: 512
+  log_level: "INFO"
