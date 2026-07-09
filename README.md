@@ -1,145 +1,147 @@
-# 🚀 MLOps Sentinel
-
-**Production-ready MLOps pipeline for text classification with CI/CD, Docker, and monitoring**
+# MLOps Sentinel
 
 [![CI/CD](https://github.com/KadmiIgro/MLOps-Sentinel-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/KadmiIgro/MLOps-Sentinel-v2/actions/workflows/ci.yml)
-[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=flat&logo=docker)](https://www.docker.com/)
 
----
+Production-style MLOps pipeline for text classification. The service classifies a
+tweet as `disaster` or `not_disaster`, exposes predictions through FastAPI,
+tracks experiments with MLflow, and publishes Prometheus metrics for Grafana.
 
-## 📌 О проекте
+## Stack
 
-MLOps Sentinel — это сквозной MLOps пайплайн для классификации текстов. Проект демонстрирует промышленный подход к разработке и эксплуатации ML-систем:
+- Model: `distilbert-base-uncased`
+- API: FastAPI, Swagger UI at `/docs`
+- Training: Hugging Face Transformers, Datasets, scikit-learn
+- Experiment tracking: MLflow
+- Monitoring: Prometheus and Grafana
+- Packaging: Docker and Docker Compose
+- CI: GitHub Actions with tests, linting, and Docker smoke check
 
-- ✅ Обучение модели DistilBERT на датасете твитов
-- ✅ REST API на FastAPI с автоматической документацией
-- ✅ Контейнеризация с Docker
-- ✅ CI/CD пайплайн на GitHub Actions
-- ✅ Мониторинг (Prometheus + Grafana)
-- ✅ Версионирование модели (MLflow)
+`requirements.txt` contains the full development and training environment.
+Docker API images use `requirements-api.txt` to avoid shipping test and training
+helpers in production runtime containers.
 
----
+## Project Layout
 
-## 🛠 Технологический стек
+```text
+data/                         CSV datasets
+models/                       trained model artifacts, ignored by git
+src/app.py                    FastAPI application
+src/train.py                  training entrypoint
+src/data_loader.py            CSV loading and train/test split
+tests/                        unit and API tests
+monitoring/prometheus.yml     Prometheus scrape config
+monitoring/grafana/           Grafana datasource and dashboard provisioning
+docker-compose.yml            local API, MLflow, Prometheus, Grafana stack
+```
 
-| Компонент | Технология | Назначение |
-|-----------|-----------|------------|
-| **ML** | DistilBERT, Transformers | Классификация текстов |
-| **API** | FastAPI, Uvicorn | REST API с Swagger |
-| **Контейнеризация** | Docker, Docker Compose | Упаковка и запуск |
-| **CI/CD** | GitHub Actions | Автоматическое тестирование и деплой |
-| **Мониторинг** | Prometheus, Grafana | Сбор метрик и визуализация |
-| **Версионирование** | MLflow | Логирование экспериментов |
+## Local Setup
 
----
-
-## 🚀 Быстрый старт
-
-### 1. Клонировать репозиторий
-git clone https://github.com/KadmiIgro/MLOps-Sentinel-v2.git
-cd MLOps-Sentinel-v2
-
-### 2. Установить зависимости
+```bash
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# или
-venv\Scripts\activate     # Windows
-
+source venv/bin/activate
 pip install -r requirements.txt
+```
 
-### 3. Обучить модель (опционально)
-python src/train.py
+On Windows PowerShell:
 
-### 4. Запустить API локально
-uvicorn src.app:app --reload
+```powershell
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
 
-### 5. Запустить через Docker
-docker-compose up -d --build
+Runtime settings can be overridden with environment variables. See
+`.env.example` for the supported names.
 
----
+Place a dataset at `data/train.csv` with at least:
 
-## 📖 API Документация
+```csv
+text,target
+Fire in the building!,1
+Sunny day in the park,0
+```
 
-После запуска API доступны:
+## Train
 
-| Эндпоинт | Метод | Описание |
-|----------|-------|----------|
-| /docs | GET | Swagger UI с документацией |
-| /health | GET | Проверка статуса сервиса |
-| /predict | POST | Классификация текста |
+```bash
+python -m src.train
+```
 
-### Пример запроса к /predict
+Training saves the local model to `models/disaster_classification` and logs
+parameters, metrics, and the model artifact to MLflow using the URI in
+`config.yaml`.
 
+## Run API
+
+```bash
+uvicorn src.app:app --host 0.0.0.0 --port 8000
+```
+
+Useful endpoints:
+
+- Swagger: <http://localhost:8000/docs>
+- Health: <http://localhost:8000/health>
+- Readiness: <http://localhost:8000/ready>
+- Metrics: <http://localhost:8000/metrics>
+
+Prediction example:
+
+```bash
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
-  -d '{"text": "Fire in the building! Help!"}'
+  -d '{"text":"Fire in the building! Help!"}'
+```
 
-Ответ:
+Example response:
+
+```json
 {
   "prediction": 1,
-  "confidence": 0.96,
+  "confidence": 0.94,
   "label": "disaster"
 }
+```
 
----
+If the model is not trained yet, `/health` still works and `/predict` returns
+`503` with instructions to train the model or set `MODEL_URI`. `/ready` checks
+whether the model can be loaded and returns `503` until inference is available.
 
-## 📊 Мониторинг
+## Run Local Prediction
 
-После запуска через Docker Compose доступны:
+After training, classify text without starting the API:
 
-- **Prometheus:** http://localhost:9090
-- **Grafana:** http://localhost:3000 (логин: admin, пароль: admin)
+```bash
+python -m src.predict "Fire in the building! Help!"
+```
 
----
+## Run Full Stack
 
-## 🧪 Тестирование
+```bash
+docker compose up --build
+```
 
-pytest tests/ -v
+Services:
 
----
+- API: <http://localhost:8000>
+- MLflow: <http://localhost:5000>
+- Prometheus: <http://localhost:9090>
+- Grafana: <http://localhost:3000> (`admin` / `admin`)
 
-## 📂 Структура проекта
+Grafana is provisioned with a Prometheus datasource and an `MLOps Sentinel API`
+dashboard for request rate, p95 latency, and 5xx errors.
 
-MLOps-Sentinel/
-├── .github/
-│   └── workflows/
-│       └── ci.yml          # CI/CD пайплайн
-├── src/
-│   ├── app.py              # FastAPI приложение
-│   ├── data_loader.py      # Загрузка данных
-│   └── train.py            # Обучение модели
-├── tests/
-│   ├── test_api.py         # Тесты API
-│   ├── test_data_loader.py # Тесты загрузки данных
-│   └── test_model.py       # Тесты модели
-├── data/
-│   └── train.csv           # Датасет (не в репозитории)
-├── models/                 # Сохранённая модель (не в репозитории)
-├── config.yaml             # Конфигурация
-├── Dockerfile              # Docker образ
-├── docker-compose.yml      # Оркестрация
-├── requirements.txt        # Зависимости
-└── README.md               # Документация
+To register the local model in MLflow after training:
 
----
+```bash
+docker compose --profile register up --build register-model
+```
 
-## 🎯 Что дальше?
+## Tests
 
-- [ ] Добавить Telegram бота
-- [ ] Настроить автоскейлинг в Kubernetes
-- [ ] Подключить S3 для хранения моделей
-- [ ] Добавить A/B тестирование
+```bash
+pytest -v
+black --check src tests register_model.py
+flake8 src tests register_model.py --count --max-complexity=10 --statistics
+```
 
----
-
-## 📄 Лицензия
-
-MIT © 2026
-
-## ✉️ Контакты
-
-**Автор:** [Kirill](https://github.com/KadmiIgro)
-
-⭐ Если проект был полезен, поставь звезду на GitHub!
+Model smoke tests are skipped automatically when `models/disaster_classification`
+is absent, which keeps CI fast and deterministic.
