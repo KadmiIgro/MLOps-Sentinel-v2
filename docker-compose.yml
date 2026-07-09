@@ -1,6 +1,79 @@
 services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    ports:
+      - "5000:5000"
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+      --serve-artifacts
+      --allowed-hosts "*"
+      --cors-allowed-origins "*"
+    volumes:
+      - ./mlflow:/mlflow
+    networks:
+      - ml-network
+
   api:
     build: .
     ports:
       - "8000:8000"
-    command: uvicorn src.app:app --host 0.0.0.0 --port 8000
+    depends_on:
+      - mlflow
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_PATH: /app/models/disaster_classification
+    volumes:
+      - ./models:/app/models:ro
+    networks:
+      - ml-network
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api
+    networks:
+      - ml-network
+
+  register-model:
+    build:
+      context: .
+      dockerfile: Dockerfile.register
+    profiles:
+      - register
+    depends_on:
+      - mlflow
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_PATH: /app/models/disaster_classification
+    volumes:
+      - ./models:/app/models:ro
+    networks:
+      - ml-network
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - ml-network
+
+networks:
+  ml-network:
+    driver: bridge

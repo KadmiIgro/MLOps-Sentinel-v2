@@ -1,0 +1,15 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+COPY requirements-api.txt .
+RUN pip install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cpu \
+    "torch>=2.5.0"
+RUN pip install --no-cache-dir -r requirements-api.txt
+
+COPY config.yaml .
+COPY register_model.py .
+RUN mkdir -p models
+
+CMD ["python", "register_model.py"]
