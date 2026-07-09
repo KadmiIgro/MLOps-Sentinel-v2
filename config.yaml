@@ -7,6 +7,7 @@ data:
 
 model:
   name: "distilbert-base-uncased"
+  local_path: "models/disaster_classification"
   num_labels: 2
   epochs: 3
   batch_size: 16
@@ -16,7 +17,7 @@ model:
 
 task:
   name: "disaster_classification"
-  description: "Классификация твитов на наличие катастроф"
+  description: "Tweet classification: disaster or not disaster"
   labels:
     "0": "not_disaster"
     "1": "disaster"
@@ -26,3 +27,8 @@ api:
   port: 8000
   max_text_length: 512
   log_level: "INFO"
+
+mlflow:
+  tracking_uri: "file:./mlruns"
+  experiment_name: "disaster_classification"
+  model_uri: ""
